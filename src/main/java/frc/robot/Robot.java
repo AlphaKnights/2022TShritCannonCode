@@ -11,6 +11,7 @@ import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 
@@ -40,19 +41,26 @@ public class Robot extends TimedRobot {
   private Solenoid Solenoid_5;
   private Solenoid Solenoid_6;
 
-  private static final int kJoystickChannel = 2;
+  private static final int kJoystickChannel = 0;
+  private static final int tJoystickChannel = 1;
   //private static final int kGyroChannel = 2;
   private Joystick m_stick;
+  private Joystick t_stick;
   private AnalogGyro m_gyro;
-
+  private int totalSolonoids = 6;
   private Solenoid[] topSolonoids;
   private Solenoid[] bottomSolonoids;
+  private Solenoid[] allSolonoids;
+
+  private Integer[] buttonCannonMappings = {7, 8,9,10,11,12};
+  private boolean[] selectedCannons = {false,false,false,false,false,false};
 
   private Compressor TestCompressor;
 
   public double integrative;
   public double derivitive;
   public double previousError;
+  private FireCannon cannon = new FireCannon();
 
   @Override
   public void robotInit() {
@@ -66,13 +74,15 @@ public class Robot extends TimedRobot {
     TestCompressor.setClosedLoopControl(false);
 
     m_stick = new Joystick(kJoystickChannel);
+    t_stick = new Joystick(tJoystickChannel);
 
     leftSideSpeedControllerGroup = new SpeedControllerGroup(new WPI_TalonSRX(1), new WPI_TalonSRX(2));
     rightSideSpeedControllerGroup = new SpeedControllerGroup(new WPI_TalonSRX(3), new WPI_TalonSRX(4));
     m_myRobot = new DifferentialDrive(leftSideSpeedControllerGroup, rightSideSpeedControllerGroup);
 
-    topSolonoids = new Solenoid[] { Solenoid_1, Solenoid_2, Solenoid_3 };
-    bottomSolonoids = new Solenoid[] { Solenoid_4, Solenoid_5, Solenoid_6 };
+    // topSolonoids = new Solenoid[] { Solenoid_1, Solenoid_2, Solenoid_3 };
+    // bottomSolonoids = new Solenoid[] { Solenoid_4, Solenoid_5, Solenoid_6 };
+    allSolonoids = new Solenoid[] {Solenoid_1, Solenoid_2, Solenoid_3, Solenoid_4, Solenoid_5, Solenoid_6};
    // m_gyro = new AnalogGyro(kGyroChannel);
     System.out.println("rgirhov");
   }
@@ -80,24 +90,37 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
     //? Only run the compressor if button 12 is held
-    if (m_stick.getRawButton(12)){
-      TestCompressor.setClosedLoopControl(true);
-      System.out.println("??");
+    if (t_stick.getRawButtonPressed(2)){
+      if(!TestCompressor.getClosedLoopControl()){
+        TestCompressor.setClosedLoopControl(true);
+        System.out.println("Pressurizing!");
+      }
+      else if(TestCompressor.getClosedLoopControl()){
+        TestCompressor.setClosedLoopControl(false);
+        System.out.println("Pressurizing!");
+      }
     } 
-    if (m_stick.getRawButton(11)) {
-      TestCompressor.setClosedLoopControl(false);
-    }
-    //// fireCannon(Solenoid_1, m_stick, 8);
-    //// fireCannon(Solenoid_2, m_stick, 10);
-    //// fireCannon(Solenoid_3, m_stick, 12);
-    //// fireCannon(Solenoid_4, m_stick, 7);
-    //// fireCannon(Solenoid_5, m_stick, 9);
-    //// fireCannon(Solenoid_6, m_stick, 11);
+
+    
 
     // Logic to control trigering is inside
     // DO: Move the logic out here, makes more sense. 
-    fireTrio(topSolonoids, m_stick, 5);
-    fireTrio(bottomSolonoids, m_stick, 6);
+    // fireTrio(topSolonoids, m_stick, 5);
+    // fireTrio(bottomSolonoids, m_stick, 6);
+
+    for (int i = 0; i < totalSolonoids; i++) {
+      if(t_stick.getRawButtonPressed(buttonCannonMappings[i])){
+        if(selectedCannons[i]){
+          selectedCannons[i] = false;
+        }
+        else{
+          selectedCannons[i] = true;
+        }
+        SmartDashboard.putBoolean("Solonoid "+i+":", selectedCannons[i]);
+      }
+    }
+
+    cannon.fireGrouping(t_stick, allSolonoids, selectedCannons);
 
     // Make robit go
     double[] movementList = adjustJoystickInput(-m_stick.getY(), m_stick.getX(), m_stick.getThrottle());
@@ -154,28 +177,6 @@ public class Robot extends TimedRobot {
     }
   }
 
-  public void fireCannon(Solenoid solonoidToFire, Joystick joystick, int secondaryButton) {
-    //! Obsolete, do not use. 
-    if (joystick.getRawButton(1) && joystick.getRawButton(secondaryButton)) {
-      solonoidToFire.set(true);
-    } else {
-      solonoidToFire.set(false);
-    }
-  }
-
-  private void fireTrio(Solenoid[] solonoidsToFire, Joystick joystick, int secondaryButton) {
-    // Should be called every update loop, checks for butttons and may fire
-    if (joystick.getRawButton(2) && joystick.getRawButton(secondaryButton)) {
-      solonoidsToFire[0].set(true);
-      solonoidsToFire[1].set(true);
-      solonoidsToFire[2].set(true);
-    } else {
-      solonoidsToFire[0].set(false);
-      solonoidsToFire[1].set(false);
-      solonoidsToFire[2].set(false);
-    }
-  }
-  
   private double[] adjustJoystickInput(double yPower, double zPower, double Throttle) {
     double adjustedThrottle = Math.sqrt(((-1 * Throttle) + 1) / 2); // Seems like a pretty good throttle curve
     double yPowerOut = yPower * adjustedThrottle;
