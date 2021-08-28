@@ -11,23 +11,31 @@ import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
+import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
+import edu.wpi.first.wpilibj.shuffleboard.SimpleWidget;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+import java.util.function.BooleanSupplier;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
 
-import edu.wpi.first.wpilibj.AnalogGyro;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.Joystick;
 
-import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
+
+import frc.robot.Constants.CannonConstants;
+import frc.robot.Constants.ControlConstants;
+
 
 /**
  * * This is the code for the T-Shirt Cannon. Works pretty good.
  * 
- * Basic info: Drives with logitech flight stick, air compressor with button 12,
- * fire with triger, thumb button, and button 5/6 for top and bottom array.
+ * Basic info: Drives with logitech flight stick as stick 0, air compressor toggled with button 2,
+ * press 7-12 to toggle which cannons to fire, selected cannons are shown on shuffleboard
+ * pull trigger to fire cannons.
  */
 public class Robot extends TimedRobot {
   private DifferentialDrive m_myRobot;
@@ -41,18 +49,10 @@ public class Robot extends TimedRobot {
   private Solenoid Solenoid_5;
   private Solenoid Solenoid_6;
 
-  private static final int kJoystickChannel = 0;
-  private static final int tJoystickChannel = 1;
-  //private static final int kGyroChannel = 2;
   private Joystick m_stick;
   private Joystick t_stick;
-  private AnalogGyro m_gyro;
-  private int totalSolonoids = 6;
-  private Solenoid[] topSolonoids;
-  private Solenoid[] bottomSolonoids;
   private Solenoid[] allSolonoids;
 
-  private Integer[] buttonCannonMappings = {7, 8,9,10,11,12};
   private boolean[] selectedCannons = {false,false,false,false,false,false};
 
   private Compressor TestCompressor;
@@ -60,10 +60,20 @@ public class Robot extends TimedRobot {
   public double integrative;
   public double derivitive;
   public double previousError;
-  private FireCannon cannon = new FireCannon();
+  private FireCannon cannon;
+  private ShuffleboardTab tab;
+
+  private NetworkTableEntry Cannon1;
+  private NetworkTableEntry Cannon2;
+  private NetworkTableEntry Cannon3;
+  private NetworkTableEntry Cannon4;
+  private NetworkTableEntry Cannon5;
+  private NetworkTableEntry Cannon6;
+  private NetworkTableEntry[] cannons = {Cannon1, Cannon2, Cannon3, Cannon4, Cannon5, Cannon6};
 
   @Override
   public void robotInit() {
+    cannon = new FireCannon();
     Solenoid_1 = new Solenoid(0);
     Solenoid_2 = new Solenoid(1);
     Solenoid_3 = new Solenoid(2);
@@ -73,18 +83,35 @@ public class Robot extends TimedRobot {
     TestCompressor = new Compressor(0);
     TestCompressor.setClosedLoopControl(false);
 
-    m_stick = new Joystick(kJoystickChannel);
-    t_stick = new Joystick(tJoystickChannel);
+    m_stick = new Joystick(ControlConstants.mJoystickChannel);
+    t_stick = new Joystick(ControlConstants.tJoystickChannel);
 
     leftSideSpeedControllerGroup = new SpeedControllerGroup(new WPI_TalonSRX(1), new WPI_TalonSRX(2));
     rightSideSpeedControllerGroup = new SpeedControllerGroup(new WPI_TalonSRX(3), new WPI_TalonSRX(4));
     m_myRobot = new DifferentialDrive(leftSideSpeedControllerGroup, rightSideSpeedControllerGroup);
-
-    // topSolonoids = new Solenoid[] { Solenoid_1, Solenoid_2, Solenoid_3 };
-    // bottomSolonoids = new Solenoid[] { Solenoid_4, Solenoid_5, Solenoid_6 };
     allSolonoids = new Solenoid[] {Solenoid_1, Solenoid_2, Solenoid_3, Solenoid_4, Solenoid_5, Solenoid_6};
-   // m_gyro = new AnalogGyro(kGyroChannel);
-    System.out.println("rgirhov");
+
+    tab = Shuffleboard.getTab("T-Shirt Cannon");
+    Cannon1 = tab.addPersistent("Cannon 1:", false)
+    .withWidget("Toggle Button")
+    .getEntry();
+    Cannon2 = tab.addPersistent("Cannon 2:", false)
+    .withWidget("Toggle Button")
+    .getEntry();
+    Cannon3 = tab.addPersistent("Cannon 3:", false)
+    .withWidget("Toggle Button")
+    .getEntry();
+    Cannon4 = tab.addPersistent("Cannon 4:", false)
+    .withWidget("Toggle Button")
+    .getEntry();
+    Cannon5 = tab.addPersistent("Cannon 5:", false)
+    .withWidget("Toggle Button")
+    .getEntry();
+    Cannon6 = tab.addPersistent("Cannon 6:", false)
+    .withWidget("Toggle Button")
+    .getEntry();
+
+    System.out.println("init success");
   }
 
   @Override
@@ -101,23 +128,16 @@ public class Robot extends TimedRobot {
       }
     } 
 
-    
-
-    // Logic to control trigering is inside
-    // DO: Move the logic out here, makes more sense. 
-    // fireTrio(topSolonoids, m_stick, 5);
-    // fireTrio(bottomSolonoids, m_stick, 6);
-
-    for (int i = 0; i < totalSolonoids; i++) {
-      if(t_stick.getRawButtonPressed(buttonCannonMappings[i])){
-        if(selectedCannons[i]){
-          selectedCannons[i] = false;
+    for (int i = 0; i < CannonConstants.totalSolonoids; i++) {
+      if(t_stick.getRawButtonPressed(ControlConstants.buttonCannonMappings[i])){
+        if(cannons[i].getBoolean(false)){
+          cannons[i].setBoolean(false);
         }
         else{
-          selectedCannons[i] = true;
+          cannons[i].setBoolean(true);
         }
-        SmartDashboard.putBoolean("Solonoid "+i+":", selectedCannons[i]);
       }
+      selectedCannons[i] = cannons[i].getBoolean(false);
     }
 
     cannon.fireGrouping(t_stick, allSolonoids, selectedCannons);
@@ -130,9 +150,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void testInit() {
-    TestCompressor = new Compressor(0);
-    TestCompressor.setClosedLoopControl(true);
-
+    System.out.println("Test Init!");
   }
 
   @Override
