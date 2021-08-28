@@ -11,11 +11,13 @@ import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
 import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
 import edu.wpi.first.wpilibj.shuffleboard.SimpleWidget;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 
 import com.ctre.phoenix.motorcontrol.can.WPI_TalonSRX;
@@ -71,6 +73,10 @@ public class Robot extends TimedRobot {
   private NetworkTableEntry Cannon6;
   private NetworkTableEntry[] cannons = {Cannon1, Cannon2, Cannon3, Cannon4, Cannon5, Cannon6};
 
+  private NetworkTableEntry UsbConnectionSelectedMove;
+  private NetworkTableEntry UsbConnectionSelectedCannon;
+  private int[] pastState = {0,1};
+
   @Override
   public void robotInit() {
     cannon = new FireCannon();
@@ -83,8 +89,6 @@ public class Robot extends TimedRobot {
     TestCompressor = new Compressor(0);
     TestCompressor.setClosedLoopControl(false);
 
-    m_stick = new Joystick(ControlConstants.mJoystickChannel);
-    t_stick = new Joystick(ControlConstants.tJoystickChannel);
 
     leftSideSpeedControllerGroup = new SpeedControllerGroup(new WPI_TalonSRX(1), new WPI_TalonSRX(2));
     rightSideSpeedControllerGroup = new SpeedControllerGroup(new WPI_TalonSRX(3), new WPI_TalonSRX(4));
@@ -92,24 +96,36 @@ public class Robot extends TimedRobot {
     allSolonoids = new Solenoid[] {Solenoid_1, Solenoid_2, Solenoid_3, Solenoid_4, Solenoid_5, Solenoid_6};
 
     tab = Shuffleboard.getTab("T-Shirt Cannon");
-    Cannon1 = tab.addPersistent("Cannon 1:", false)
+    Cannon1 = tab.add("Cannon 1:", false)
     .withWidget("Toggle Button")
     .getEntry();
-    Cannon2 = tab.addPersistent("Cannon 2:", false)
+    Cannon2 = tab.add("Cannon 2:", false)
     .withWidget("Toggle Button")
     .getEntry();
-    Cannon3 = tab.addPersistent("Cannon 3:", false)
+    Cannon3 = tab.add("Cannon 3:", false)
     .withWidget("Toggle Button")
     .getEntry();
-    Cannon4 = tab.addPersistent("Cannon 4:", false)
+    Cannon4 = tab.add("Cannon 4:", false)
     .withWidget("Toggle Button")
     .getEntry();
-    Cannon5 = tab.addPersistent("Cannon 5:", false)
+    Cannon5 = tab.add("Cannon 5:", false)
     .withWidget("Toggle Button")
     .getEntry();
-    Cannon6 = tab.addPersistent("Cannon 6:", false)
+    Cannon6 = tab.add("Cannon 6:", false)
     .withWidget("Toggle Button")
     .getEntry();
+    
+    UsbConnectionSelectedMove = tab.addPersistent("Move Stick:", ControlConstants.mJoystickChannel)
+    .withWidget(BuiltInWidgets.kNumberSlider)
+    .withProperties(Map.of("min", 0, "max", 5))
+    .getEntry();
+    UsbConnectionSelectedCannon = tab.addPersistent("Cannon Stick:", ControlConstants.tJoystickChannel)
+    .withWidget(BuiltInWidgets.kNumberSlider)
+    .withProperties(Map.of("min", 0, "max", 5))
+    .getEntry();
+
+    m_stick = new Joystick((int) UsbConnectionSelectedMove.getNumber(0));
+    t_stick = new Joystick((int) UsbConnectionSelectedCannon.getNumber(1));
 
     System.out.println("init success");
   }
